@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>1v1 Game Timer (Basketball)</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card: #171a21;
+      --muted: #8892b0;
+      --text: #e6edf3;
+      --accent: #60a5fa;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg, #0b0e13, #101419);
+      color: var(--text);
+    }
+    .container { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .card {
+      background: var(--card); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    }
+    h1, h2 { text-align: center; margin: 0 0 16px; letter-spacing: .5px; }
+    h1 { font-size: 28px; }
+    h2 { font-size: 20px; color: var(--muted); font-weight: 600; }
+    label { display: block; margin: 12px 0 6px; font-weight: 600; }
+    input[type="number"], input[type="text"], input[type="file"] {
+      width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: #0f1218; color: var(--text);
+      outline: none; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 640px){ .row, .row3 { grid-template-columns: 1fr; } }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; border-radius: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent;
+      background: #1f2937; color: #fff; text-decoration: none; user-select: none;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: linear-gradient(180deg, #2563eb, #1d4ed8); }
+    .btn-success { background: linear-gradient(180deg, #16a34a, #15803d); }
+    .btn-warning { background: linear-gradient(180deg, #f59e0b, #d97706); }
+    .btn-danger  { background: linear-gradient(180deg, #ef4444, #dc2626); }
+    .btn-ghost   { background: #0f1218; border-color: rgba(255,255,255,0.08); }
+
+    .spacer { height: 16px; }
+    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .hidden { display: none !important; }
+
+    /* Views */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Game layout */
+    .game-grid { display: grid; grid-template-columns: 1.4fr .9fr; gap: 16px; }
+    @media (max-width: 900px){ .game-grid { grid-template-columns: 1fr; } }
+
+    .big-time { font-size: clamp(56px, 9vw, 96px); text-align: center; font-weight: 800; letter-spacing: 2px; }
+    .sub-time { font-size: clamp(22px, 4vw, 32px); text-align: center; font-weight: 700; color: var(--muted); }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.08); background: #0f1218; color: var(--muted);
+    }
+
+    .circle-btns { display: flex; justify-content: center; gap: 12px; }
+    .circle-btns button {
+      width: 72px; height: 72px; border-radius: 50%; border: 1px solid rgba(255,255,255,.12); background: #0f1218; color: #fff; font-weight: 800; font-size: 22px; cursor: pointer;
+    }
+    .circle-btns button.active { outline: 3px solid var(--accent); }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px){ .split { grid-template-columns: 1fr; } }
+
+    .note { color: var(--muted); text-align: center; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <!-- SETTINGS VIEW -->
+      <section id="view-settings" class="view active" aria-labelledby="title-settings">
+        <h1 id="title-settings">Game Settings</h1>
+        <div class="row3">
+          <div>
+            <label for="minutes">Game Time — Minutes</label>
+            <input id="minutes" type="number" min="0" value="10" />
+          </div>
+          <div>
+            <label for="seconds">Game Time — Seconds</label>
+            <input id="seconds" type="number" min="0" max="59" value="0" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 12px;">
+          <div>
+            <label for="offensiveTime">Offensive Time (shot clock seconds)</label>
+            <input id="offensiveTime" type="number" min="1" value="24" />
+          </div>
+          <div>
+            <label for="buzzerFile">Buzzer Sound (.mp3/.wav)</label>
+            <input id="buzzerFile" type="file" accept="audio/*" />
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="actions">
+          <button id="btn-settings-next" class="btn btn-primary">Next</button>
+        </div>
+        <p class="note">Upload a short buzzer sound. All titles are center-aligned by design.</p>
+      </section>
+
+      <!-- PLAYERS VIEW -->
+      <section id="view-players" class="view" aria-labelledby="title-players">
+        <h1 id="title-players">Players</h1>
+        <div class="row">
+          <div>
+            <label for="p1">Player 1 — Full Name</label>
+            <input id="p1" type="text" placeholder="e.g., LeBron James" />
+          </div>
+          <div>
+            <label for="p2">Player 2 — Full Name</label>
+            <input id="p2" type="text" placeholder="e.g., Stephen Curry" />
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <div class="actions">
+          <button id="btn-players-next" class="btn btn-primary">Next</button>
+        </div>
+      </section>
+
+      <!-- GAME VIEW -->
+      <section id="view-game" class="view" aria-labelledby="title-game">
+        <h1 id="title-game">Game</h1>
+        <div class="game-grid">
+          <div>
+            <h2>Time Left</h2>
+            <div id="lbl-master-time" class="big-time">10:00</div>
+
+            <div class="spacer"></div>
+            <div id="pausePill" class="pill hidden" aria-live="polite">Paused: <span id="lbl-paused">0</span>s</div>
+            <div id="autoPausePill" class="pill hidden" style="margin-left:8px" aria-live="polite">Offense Violation: Paused <span id="lbl-auto-paused">10</span>s</div>
+
+            <div class="spacer"></div>
+            <div class="split">
+              <button id="btn-out" class="btn btn-warning">Out (15s)</button>
+              <button id="btn-foul" class="btn btn-danger">Foul (25s)</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="actions">
+              <button id="btn-pause" class="btn btn-primary">Pause</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="actions">
+              <button id="btn-resume" class="btn btn-success hidden">Resume</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="actions">
+              <button id="btn-endgame" class="btn btn-ghost">End Game</button>
+            </div>
+          </div>
+
+          <div>
+            <h2>Ball with</h2>
+            <div class="circle-btns">
+              <button id="btn-p1" title="Player 1"></button>
+              <button id="btn-p2" title="Player 2"></button>
+            </div>
+            <div class="spacer"></div>
+            <div class="sub-time">Offense Time Left</div>
+            <div id="lbl-offense-time" class="sub-time">—</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // --------------------- State ----------------------
+    const $ = sel => document.querySelector(sel);
+    const views = {
+      settings: $('#view-settings'),
+      players: $('#view-players'),
+      game: $('#view-game')
+    };
+
+    const els = {
+      minutes: $('#minutes'), seconds: $('#seconds'), offensiveTime: $('#offensiveTime'), buzzerFile: $('#buzzerFile'),
+      btnSettingsNext: $('#btn-settings-next'),
+      p1: $('#p1'), p2: $('#p2'), btnPlayersNext: $('#btn-players-next'),
+      lblMaster: $('#lbl-master-time'), lblOffense: $('#lbl-offense-time'),
+      btnOut: $('#btn-out'), btnFoul: $('#btn-foul'), btnPause: $('#btn-pause'), btnResume: $('#btn-resume'), btnEnd: $('#btn-endgame'),
+      btnP1: $('#btn-p1'), btnP2: $('#btn-p2'),
+      pausePill: $('#pausePill'), lblPaused: $('#lbl-paused'), autoPausePill: $('#autoPausePill'), lblAutoPaused: $('#lbl-auto-paused')
+    };
+
+    let settings = loadSettings();
+    let players = loadPlayers();
+
+    // Game runtime state
+    const game = {
+      totalMs: 10 * 60 * 1000,
+      masterRemainingMs: 10 * 60 * 1000,
+      offenseRemainingMs: null,
+      running: false,
+      paused: false,
+      pauseMode: null, // 'manual' | 'auto' | null
+      pauseRemainingMs: 0,
+      showResume: false,
+      lastTickTs: performance.now(),
+      intervalMs: 60 * 1000,
+      nextBuzzerElapsedMs: 60 * 1000,
+      possession: null, // 'P1' | 'P2' | null
+      ended: false,
+    };
+
+    // Audio
+    let audioCtx = null;
+    let audioBuffer = null;
+
+    function ensureAudioCtx(){
+      if(!audioCtx){
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if(audioCtx.state === 'suspended'){
+        audioCtx.resume();
+      }
+    }
+
+    function playBuzzer(){
+      if(!audioBuffer){ return; }
+      try{
+        ensureAudioCtx();
+        const src = audioCtx.createBufferSource();
+        src.buffer = audioBuffer;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      }catch(e){ console.warn('Buzzer play failed:', e); }
+    }
+
+    function fileToArrayBuffer(file){
+      return new Promise((resolve, reject)=>{
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsArrayBuffer(file);
+      });
+    }
+
+    function fileToDataUrl(file){
+      return new Promise((resolve, reject)=>{
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+    }
+
+    async function handleAudioUpload(file){
+      ensureAudioCtx();
+      const [arrBuf, dataUrl] = await Promise.all([fileToArrayBuffer(file), fileToDataUrl(file)]);
+      audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+      // persist data URL in settings
+      settings.audioDataUrl = dataUrl;
+      saveSettings();
+    }
+
+    // --------------------- Storage ----------------------
+    function loadSettings(){
+      try{
+        const raw = localStorage.getItem('game_settings');
+        if(!raw) return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null };
+        return JSON.parse(raw);
+      }catch{ return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null }; }
+    }
+    function saveSettings(){ localStorage.setItem('game_settings', JSON.stringify(settings)); }
+
+    function loadPlayers(){
+      try{
+        const raw = localStorage.getItem('game_players');
+        if(!raw) return { p1Name: '', p2Name: '', p1Init: '', p2Init: '' };
+        return JSON.parse(raw);
+      }catch{ return { p1Name: '', p2Name: '', p1Init: '', p2Init: '' }; }
+    }
+    function savePlayers(){ localStorage.setItem('game_players', JSON.stringify(players)); }
+
+    function initials(name){
+      if(!name) return '';
+      const parts = name.trim().split(/\s+/);
+      if(parts.length === 1){
+        return parts[0].slice(0,2).toUpperCase();
+      }
+      return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+    }
+
+    // --------------------- Navigation ----------------------
+    function show(view){
+      Object.values(views).forEach(v => v.classList.remove('active'));
+      views[view].classList.add('active');
+    }
+
+    function hydrateFromSettings(){
+      els.minutes.value = settings.minutes;
+      els.seconds.value = settings.seconds;      els.offensiveTime.value = settings.offensiveTimeSec;
+    }
+
+    function hydrateFromPlayers(){
+      els.p1.value = players.p1Name;
+      els.p2.value = players.p2Name;
+    }
+
+    async function maybeRestoreAudioBuffer(){
+      if(settings.audioDataUrl){
+        try{
+          ensureAudioCtx();
+          const res = await fetch(settings.audioDataUrl);
+          const arrBuf = await res.arrayBuffer();
+          audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+        }catch(e){ console.warn('Could not restore audio buffer:', e); }
+      }
+    }
+
+    // --------------------- Validation ----------------------
+    function positiveInt(val){ return Number.isFinite(val) && val > 0; }
+    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+    // --------------------- Game Control ----------------------
+    function resetGameState(){
+      game.totalMs = (settings.minutes * 60 + settings.seconds) * 1000;
+      game.masterRemainingMs = game.totalMs;      game.offenseRemainingMs = null;
+      game.running = false;
+      game.paused = false;
+      game.pauseMode = null;
+      game.pauseRemainingMs = 0;
+      game.showResume = false;
+      game.possession = null;
+      game.ended = false;
+      game.lastTickTs = performance.now();
+      renderGameUI();
+    }
+
+    function startGame(){
+      game.running = true;
+      game.lastTickTs = performance.now();
+    }
+
+    function endGame(){
+      if(game.ended) return;
+      game.ended = true;
+      game.running = false;
+      game.masterRemainingMs = 0;
+      playBuzzer();
+      renderGameUI();
+      // brief timeout then go to players
+      setTimeout(()=>{ show('players'); }, 300);
+    }
+
+    function setPossession(who){
+      if(who !== 'P1' && who !== 'P2') return;
+      game.possession = who;
+      // restart shot clock to full unless paused; it will tick only when not paused
+      game.offenseRemainingMs = settings.offensiveTimeSec * 1000;
+      renderGameUI();
+    }
+
+    function beginManualPause(ms){
+      game.paused = true;
+      game.pauseMode = 'manual';
+      game.pauseRemainingMs = ms;
+      game.showResume = true; // visible immediately
+      renderGameUI();
+    }
+
+    function beginAutoPause(ms){
+      game.paused = true;
+      game.pauseMode = 'auto';
+      game.pauseRemainingMs = ms;
+      game.showResume = false; // no resume button for auto pause
+      renderGameUI();
+    }
+
+    function tryResume(){
+      if(!game.paused) return;
+      game.paused = false;
+      game.pauseMode = null;
+      game.pauseRemainingMs = 0;
+      game.showResume = false;
+      game.lastTickTs = performance.now(); // reset drift baseline
+      renderGameUI();
+    }
+
+    // --------------------- Rendering ----------------------
+    function fmt(ms){
+      ms = Math.max(0, Math.floor(ms));
+      const totalSec = Math.floor(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function renderGameUI(){
+      els.lblMaster.textContent = fmt(game.masterRemainingMs);
+      els.lblOffense.textContent = (game.offenseRemainingMs == null) ? '—' : fmt(game.offenseRemainingMs);
+
+      // Pause pills & resume visibility
+      if(game.paused && game.pauseMode === 'manual'){
+        els.pausePill.classList.remove('hidden');
+        els.autoPausePill.classList.add('hidden');
+        els.lblPaused.textContent = (game.pauseRemainingMs != null) ? Math.ceil(game.pauseRemainingMs/1000) : '—';
+      } else if(game.paused && game.pauseMode === 'auto'){
+        els.autoPausePill.classList.remove('hidden');
+        els.pausePill.classList.add('hidden');
+        els.lblAutoPaused.textContent = Math.ceil(game.pauseRemainingMs/1000);
+      } else {
+        els.pausePill.classList.add('hidden');
+        els.autoPausePill.classList.add('hidden');
+      }
+
+      // Buttons visibility
+      if(game.paused){
+        els.btnOut.classList.add('hidden');
+        els.btnFoul.classList.add('hidden');
+        if(els.btnPause) els.btnPause.classList.add('hidden');
+        if(game.showResume){
+          els.btnResume.classList.remove('hidden');
+          els.btnResume.disabled = false; // always enabled during pause
+        } else {
+          els.btnResume.classList.add('hidden');
+        }
+      } else {
+        els.btnOut.classList.remove('hidden');
+        els.btnFoul.classList.remove('hidden');
+        if(els.btnPause) els.btnPause.classList.remove('hidden');
+        els.btnResume.classList.add('hidden');
+      }
+
+      // Possession highlighting & initials
+      els.btnP1.textContent = players.p1Init || 'P1';
+      els.btnP2.textContent = players.p2Init || 'P2';
+      els.btnP1.classList.toggle('active', game.possession === 'P1');
+      els.btnP2.classList.toggle('active', game.possession === 'P2');
+    }
+
+    // --------------------- Main Loop ----------------------
+    function loop(){
+      const now = performance.now();
+      const dt = now - game.lastTickTs;
+      game.lastTickTs = now;
+
+      if(game.running){
+        if(game.paused){
+          // count down pause time
+          if(game.pauseRemainingMs > 0){
+            game.pauseRemainingMs = Math.max(0, game.pauseRemainingMs - dt);
+            // auto resume only for auto pause
+            if(game.pauseRemainingMs === 0 && game.pauseMode === 'auto'){
+              tryResume();
+            }
+          }
+        } else {
+          // advance timers
+          const prevMaster = game.masterRemainingMs;
+          game.masterRemainingMs = Math.max(0, game.masterRemainingMs - dt);
+
+          if(game.offenseRemainingMs != null){
+            const prevOff = game.offenseRemainingMs;
+            game.offenseRemainingMs = Math.max(0, game.offenseRemainingMs - dt);
+            if(prevOff > 0 && game.offenseRemainingMs === 0){
+              // Offense violation → buzzer + auto pause 10s
+              playBuzzer();
+              beginAutoPause(10 * 1000);
+            }
+          }
+          // End of game
+          if(prevMaster > 0 && game.masterRemainingMs === 0){
+            endGame();
+          }
+        }
+        renderGameUI();
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    // --------------------- Event Wiring ----------------------
+    // Settings → Next
+    els.btnSettingsNext.addEventListener('click', async ()=>{
+      const m = clamp(parseInt(els.minutes.value,10)||0, 0, 600);
+      const s = clamp(parseInt(els.seconds.value,10)||0, 0, 59);      const off = clamp(parseInt(els.offensiveTime.value,10)||0, 1, 3600);
+
+      if(m === 0 && s === 0){ alert('Game time must be more than 0.'); return; }
+      if((m*60 + s) < off){ alert('Game time must be greater than or equal to Offensive Time.'); return; }
+
+      // audio required
+      if(!settings.audioDataUrl && !els.buzzerFile.files[0]){
+        alert('Please upload a buzzer audio file (.mp3 / .wav).');
+        return;
+      }
+
+      settings.minutes = m; settings.seconds = s; settings.offensiveTimeSec = off;
+      saveSettings();
+
+      if(els.buzzerFile.files[0]){
+        try{ await handleAudioUpload(els.buzzerFile.files[0]); }
+        catch(e){ alert('Could not load audio file. Try a different file.'); return; }
+      } else if(settings.audioDataUrl && !audioBuffer){
+        await maybeRestoreAudioBuffer();
+      }
+
+      hydrateFromPlayers();
+      show('players');
+    });
+
+    // Players → Next
+    els.btnPlayersNext.addEventListener('click', ()=>{
+      const n1 = els.p1.value.trim();
+      const n2 = els.p2.value.trim();
+      if(!n1 || !n2){ alert('Please enter both players\' full names.'); return; }
+      players.p1Name = n1; players.p2Name = n2; players.p1Init = initials(n1); players.p2Init = initials(n2);
+      savePlayers();
+
+      resetGameState();
+      renderGameUI();
+      show('game');
+      startGame();
+    });
+
+    // Possession
+    els.btnP1.addEventListener('click', ()=> setPossession('P1'));
+    els.btnP2.addEventListener('click', ()=> setPossession('P2'));
+
+    // Pause / Resume / End
+    els.btnOut.addEventListener('click', ()=> beginManualPause(15 * 1000));
+    els.btnFoul.addEventListener('click', ()=> beginManualPause(25 * 1000));
+    els.btnPause.addEventListener('click', ()=> beginManualPause(null)); // indefinite pause
+    els.btnResume.addEventListener('click', tryResume);
+    els.btnEnd.addEventListener('click', endGame);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        if(views.settings.classList.contains('active')) els.btnSettingsNext.click();
+        else if(views.players.classList.contains('active')) els.btnPlayersNext.click();
+      }
+      if(e.code === 'Space'){ // Resume when visible
+        if(!els.btnResume.classList.contains('hidden')){ e.preventDefault(); els.btnResume.click(); }
+      }
+    });
+
+    // Initialize UI with stored settings
+    (async function init(){
+      hydrateFromSettings();
+      if(settings.audioDataUrl){ await maybeRestoreAudioBuffer(); }
+      renderGameUI();
+      loop();
+    })();
+
+    // --------------------- Developer Smoke Tests ----------------------
+    // Call `runSmokeTests()` from the browser console to verify core behavior without altering UI state.
+    function runSmokeTests(){
+      console.log('[Tests] Starting smoke tests...');
+      const snap = { ...game };
+      try {
+        console.assert(typeof tryResume === 'function', 'tryResume exists');
+        console.assert(!!els.btnOut && !!els.btnFoul && !!els.btnPause && !!els.btnResume, 'buttons exist');
+
+        // Manual pause should expose Resume immediately
+        beginManualPause(15000);
+        console.assert(game.paused === true, 'manual pause sets paused');
+        console.assert(game.showResume === true, 'manual pause shows resume');
+        tryResume();
+        console.assert(game.paused === false, 'resume clears pause');
+
+        // Offense auto-pause should hide Resume (per spec)
+        beginAutoPause(10000);
+        console.assert(game.paused === true && game.pauseMode === 'auto', 'auto pause active');
+        console.assert(game.showResume === false, 'auto pause hides resume');
+        tryResume();
+        console.assert(game.paused === false, 'resume clears auto pause too');
+
+        console.log('[Tests] All smoke tests passed');
+      } catch (e) {
+        console.error('[Tests] Failed:', e);
+      } finally {
+        // Restore snapshot
+        game.paused = snap.paused;
+        game.pauseMode = snap.pauseMode;
+        game.pauseRemainingMs = snap.pauseRemainingMs;
+        game.showResume = snap.showResume;
+        game.masterRemainingMs = snap.masterRemainingMs;
+        game.offenseRemainingMs = snap.offenseRemainingMs;
+        renderGameUI();
+      }
+    }
+    window.runSmokeTests = runSmokeTests;
+  </script>
+</body>
+</html>
