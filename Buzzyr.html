@@ -110,11 +110,19 @@
           </div>
         </div>
 
+        <div class="row" style="margin-top: 12px;">
+          <div>
+            <label for="whistleFile">Whistle Sound (.mp3/.wav)</label>
+            <input id="whistleFile" type="file" accept="audio/*" />
+          </div>
+        </div>
+
         <div class="spacer"></div>
+        
         <div class="actions">
           <button id="btn-settings-next" class="btn btn-primary">Next</button>
         </div>
-        <p class="note">Upload a short buzzer sound. All titles are center-aligned by design.</p>
+        <p class="note">Upload a short buzzer sound, and optionally a whistle sound (used for Out/Foul). All titles are center-aligned by design.</p>
       </section>
 
       <!-- PLAYERS VIEW -->
@@ -192,7 +200,7 @@
     };
 
     const els = {
-      minutes: $('#minutes'), seconds: $('#seconds'), offensiveTime: $('#offensiveTime'), buzzerFile: $('#buzzerFile'),
+      minutes: $('#minutes'), seconds: $('#seconds'), offensiveTime: $('#offensiveTime'), buzzerFile: $('#buzzerFile'), whistleFile: $('#whistleFile'),
       btnSettingsNext: $('#btn-settings-next'),
       p1: $('#p1'), p2: $('#p2'), btnPlayersNext: $('#btn-players-next'),
       lblMaster: $('#lbl-master-time'), lblOffense: $('#lbl-offense-time'),
@@ -224,6 +232,7 @@
     // Audio
     let audioCtx = null;
     let audioBuffer = null;
+    let audioWhistleBuffer = null;
 
     function ensureAudioCtx(){
       if(!audioCtx){
@@ -243,6 +252,19 @@
         src.connect(audioCtx.destination);
         src.start(0);
       }catch(e){ console.warn('Buzzer play failed:', e); }
+    }
+
+    function playWhistle(){
+      // Prefer whistle sound; fallback to buzzer if whistle is not provided
+      const buf = audioWhistleBuffer || audioBuffer;
+      if(!buf){ return; }
+      try{
+        ensureAudioCtx();
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      }catch(e){ console.warn('Whistle play failed:', e); }
     }
 
     function fileToArrayBuffer(file){
@@ -272,13 +294,21 @@
       saveSettings();
     }
 
+    async function handleWhistleUpload(file){
+      ensureAudioCtx();
+      const [arrBuf, dataUrl] = await Promise.all([fileToArrayBuffer(file), fileToDataUrl(file)]);
+      audioWhistleBuffer = await audioCtx.decodeAudioData(arrBuf);
+      settings.whistleDataUrl = dataUrl;
+      saveSettings();
+    }
+
     // --------------------- Storage ----------------------
     function loadSettings(){
       try{
         const raw = localStorage.getItem('game_settings');
-        if(!raw) return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null };
+        if(!raw) return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null, whistleDataUrl: null };
         return JSON.parse(raw);
-      }catch{ return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null }; }
+      }catch{ return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null, whistleDataUrl: null }; }
     }
     function saveSettings(){ localStorage.setItem('game_settings', JSON.stringify(settings)); }
 
@@ -324,6 +354,17 @@
           const arrBuf = await res.arrayBuffer();
           audioBuffer = await audioCtx.decodeAudioData(arrBuf);
         }catch(e){ console.warn('Could not restore audio buffer:', e); }
+      }
+    }
+
+    async function maybeRestoreWhistleBuffer(){
+      if(settings.whistleDataUrl){
+        try{
+          ensureAudioCtx();
+          const res = await fetch(settings.whistleDataUrl);
+          const arrBuf = await res.arrayBuffer();
+          audioWhistleBuffer = await audioCtx.decodeAudioData(arrBuf);
+        }catch(e){ console.warn('Could not restore whistle buffer:', e); }
       }
     }
 
@@ -514,6 +555,13 @@
         await maybeRestoreAudioBuffer();
       }
 
+      if(els.whistleFile && els.whistleFile.files && els.whistleFile.files[0]){
+        try{ await handleWhistleUpload(els.whistleFile.files[0]); }
+        catch(e){ console.warn('Could not load whistle file. Proceeding without whistle.'); }
+      } else if(settings.whistleDataUrl && !audioWhistleBuffer){
+        await maybeRestoreWhistleBuffer();
+      }
+
       hydrateFromPlayers();
       show('players');
     });
@@ -537,8 +585,8 @@
     els.btnP2.addEventListener('click', ()=> setPossession('P2'));
 
     // Pause / Resume / End
-    els.btnOut.addEventListener('click', ()=> beginManualPause(15 * 1000));
-    els.btnFoul.addEventListener('click', ()=> beginManualPause(25 * 1000));
+    els.btnOut.addEventListener('click', ()=> { playWhistle(); beginManualPause(15 * 1000); });
+    els.btnFoul.addEventListener('click', ()=> { playWhistle(); beginManualPause(25 * 1000); });
     els.btnPause.addEventListener('click', ()=> beginManualPause(null)); // indefinite pause
     els.btnResume.addEventListener('click', tryResume);
     els.btnEnd.addEventListener('click', endGame);
@@ -558,6 +606,7 @@
     (async function init(){
       hydrateFromSettings();
       if(settings.audioDataUrl){ await maybeRestoreAudioBuffer(); }
+      if(settings.whistleDataUrl){ await maybeRestoreWhistleBuffer(); }
       renderGameUI();
       loop();
     })();
@@ -585,7 +634,26 @@
         tryResume();
         console.assert(game.paused === false, 'resume clears auto pause too');
 
-        console.log('[Tests] All smoke tests passed');
+        // Whistle triggers on Out/Foul
+        let whistleCalls = 0;
+        const oldWhistle = window.playWhistle;
+        window.playWhistle = ()=>{ whistleCalls++; };
+        els.btnOut.click();
+        console.assert(whistleCalls >= 1, 'whistle called on Out');
+        tryResume();
+        els.btnFoul.click();
+        console.assert(whistleCalls >= 2, 'whistle called on Foul');
+        window.playWhistle = oldWhistle;
+
+        // End Game navigates to players
+        show('game');
+        endGame();
+        setTimeout(()=>{
+          console.assert(views.players.classList.contains('active'), 'navigated to players after endGame');
+          console.log('[Tests] async endGame navigation assertion complete');
+        }, 350);
+
+        console.log('[Tests] All synchronous smoke tests passed (async checks pending)');
       } catch (e) {
         console.error('[Tests] Failed:', e);
       } finally {
