@@ -122,7 +122,7 @@
         <div class="actions">
           <button id="btn-settings-next" class="btn btn-primary">Next</button>
         </div>
-        <p class="note">Upload a short buzzer sound, and optionally a whistle sound (used for Out/Foul). All titles are center-aligned by design.</p>
+        <p class="note">Upload a short buzzer sound, and optionally a whistle sound (used for Out/Foul). If you don't upload anything, the app will try to load **/sounds/buzzer.mp3** and **/sounds/whistle.mp3** automatically. All titles are center-aligned by design.</p>
       </section>
 
       <!-- PLAYERS VIEW -->
@@ -233,6 +233,36 @@
     let audioCtx = null;
     let audioBuffer = null;
     let audioWhistleBuffer = null;
+
+    // Default assets (optional): if no uploads are provided, we attempt to load these.
+    const DEFAULT_ASSET_CANDIDATES = {
+      buzzer: ['sounds/buzzer.mp3','sounds/buzzer.wav'],
+      whistle: ['sounds/whistle.mp3','sounds/whistle.wav']
+    };
+
+    async function fetchDecodeToBuffer(url){
+      ensureAudioCtx();
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('fetch failed: ' + url);
+      const arr = await res.arrayBuffer();
+      return await audioCtx.decodeAudioData(arr);
+    }
+
+    async function tryLoadDefaultBuzzer(){
+      for(const u of DEFAULT_ASSET_CANDIDATES.buzzer){
+        try { audioBuffer = await fetchDecodeToBuffer(u); console.log('[Audio] Loaded default buzzer:', u); return true; } catch(e) {}
+      }
+      console.warn('[Audio] No default buzzer found in /sounds');
+      return false;
+    }
+
+    async function tryLoadDefaultWhistle(){
+      for(const u of DEFAULT_ASSET_CANDIDATES.whistle){
+        try { audioWhistleBuffer = await fetchDecodeToBuffer(u); console.log('[Audio] Loaded default whistle:', u); return true; } catch(e) {}
+      }
+      console.warn('[Audio] No default whistle found in /sounds');
+      return false;
+    }
 
     function ensureAudioCtx(){
       if(!audioCtx){
@@ -539,11 +569,7 @@
       if(m === 0 && s === 0){ alert('Game time must be more than 0.'); return; }
       if((m*60 + s) < off){ alert('Game time must be greater than or equal to Offensive Time.'); return; }
 
-      // audio required
-      if(!settings.audioDataUrl && !els.buzzerFile.files[0]){
-        alert('Please upload a buzzer audio file (.mp3 / .wav).');
-        return;
-      }
+      // audio upload optional now; we will attempt to load defaults from /sounds if none provided
 
       settings.minutes = m; settings.seconds = s; settings.offensiveTimeSec = off;
       saveSettings();
@@ -562,6 +588,8 @@
         await maybeRestoreWhistleBuffer();
       }
 
+      if(!audioBuffer){ await tryLoadDefaultBuzzer(); }
+      if(!audioWhistleBuffer){ await tryLoadDefaultWhistle(); }
       hydrateFromPlayers();
       show('players');
     });
@@ -607,6 +635,8 @@
       hydrateFromSettings();
       if(settings.audioDataUrl){ await maybeRestoreAudioBuffer(); }
       if(settings.whistleDataUrl){ await maybeRestoreWhistleBuffer(); }
+      if(!audioBuffer){ await tryLoadDefaultBuzzer(); }
+      if(!audioWhistleBuffer){ await tryLoadDefaultWhistle(); }
       renderGameUI();
       loop();
     })();
@@ -618,6 +648,9 @@
       const snap = { ...game };
       try {
         console.assert(typeof tryResume === 'function', 'tryResume exists');
+        console.assert(typeof tryLoadDefaultBuzzer === 'function' && typeof tryLoadDefaultWhistle === 'function', 'default audio loaders exist');
+        // Ensure playBuzzer/Whistle are no-ops without buffers
+        try { playBuzzer(); playWhistle(); } catch(e){ console.assert(false, 'play functions should not throw without buffers'); }
         console.assert(!!els.btnOut && !!els.btnFoul && !!els.btnPause && !!els.btnResume, 'buttons exist');
 
         // Manual pause should expose Resume immediately
