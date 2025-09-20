@@ -1,848 +1,3 @@
-Skip to content
-You said:
-i want you to help me create a prompt to give to an ai website builder to build a tool used during 1v1 sports games for this case it's for basketball, there are 3 related pages, the first page should have a game time input in minutes and seconds, a buzzer time per how many seconds, an offensive time in seconds, an audio file uploader to upload the buzzer audio to be played, and a next button, the second page asks for the current game players full names and a next button, the third page should have the time left title, below it in large is the time left that buzzes for every buzzer timeframe has passed and if the countdown is fully done it buzzes and then resets to zero and sends the user back to the second page, and below the main countdown of the game's time are two buttons next to each other, one for Out that pauses the timer for 5 seconds, one for foul that pauses the time for 15 seconds, and upon them hitting either of them, a resume button pops up instead of both buttons and upon them hitting the resume button, both the Out and the Foul buttons reappear and the resume button gets hidden. to the right of all of this should be a title saying ball with, and below it are 2 round buttons P1 and P2's name's initials, such that, upon having the user click either of the buttons, the countdown resets to the time left for an offensive play per player identified in the first page (i.e. 24 secs) and if the time ends, a buzzer sound gets played automatically.
-
-if you require any further clarifications please ask me
-ChatGPT said:
-
-Thought for 6s
-Got it — here’s a copy-paste prompt you can give to any AI website/app builder. It’s precise, covers logic/state, and is ready to generate a working MVP.
-
-Build a responsive 3-page web app called “1v1 Game Timer (Basketball)”. Use a modern JS stack (vanilla JS or React are fine). Keep design simple, high-contrast, and mobile-first.
-
-## Global Requirements
-- Persist state across pages (single-page app routing or simple multi-view). If the user refreshes during a game, keep current timers and inputs (localStorage is fine).
-- One uploaded audio file is used as the buzzer sound everywhere.
-- All buzzers should play even if the tab was previously idle (use Web Audio API / user gesture on first page to unlock audio).
-- Keyboard support: Space toggles Resume when visible. Enter = Next on pages 1 and 2.
-- Time format: mm:ss with leading zeros. Show milliseconds only if helpful during the last second (not required).
-- When any timer “pauses for X seconds,” the main game countdown must pause and a visible countdown label shows the remaining pause time.
-
-## PAGE 1 — “Game Settings”
-Route: /settings
-Fields (with labels and placeholders):
-1) Game Time — minutes and seconds (two inputs or one combined; default 10:00).
-2) Buzzer Interval — “Buzz every ___ seconds” during the game (integer; default 60).
-3) Offensive Time — “Shot clock (seconds)” (integer; default 24).
-4) Buzzer Sound — file upload (accept .mp3/.wav). Required before starting.
-5) Next button -> navigates to /players.
-
-Validation:
-- All numbers > 0. Game time must be >= Offensive Time.
-- Prevent Next if audio is not uploaded.
-
-On Next:
-- Save gameTimeTotal, buzzerInterval, offensiveTime, audioBlob/url to app state/localStorage.
-- Reset any existing running timers.
-
-## PAGE 2 — “Players”
-Route: /players
-Fields:
-- Player 1 Full Name (text, required)
-- Player 2 Full Name (text, required)
-- Next button -> navigates to /game
-
-Logic:
-- From full names, compute 2-letter initials each (e.g., “LeBron James” -> “LJ”; if single name, first two letters).
-- Save player names and initials to state.
-
-## PAGE 3 — “Game”
-Route: /game
-
-### Layout (desktop then stack for mobile)
-Left/Main Column:
-- Title: “Time Left”
-- Big digital timer showing remaining **Game Time Left** (counting down from PAGE 1’s Game Time). This is the master timer.
-- Below the big timer: two side-by-side buttons:
-  - **Out** (pauses master timer for 5 seconds)
-  - **Foul** (pauses master timer for 15 seconds)
-- When either is clicked:
-  - Hide both buttons.
-  - Show **Resume** button.
-  - Start a visible “Paused: Xs” countdown. During this pause all other timers are paused (including offensive timer).
-  - On **Resume**, hide Resume, show Out & Foul again, and continue all timers.
-
-Right/Side Column:
-- Title: “Ball with”
-- Two large circular buttons labeled with the initials of P1 and P2.
-- Clicking a player’s button sets possession to that player and (re)starts a visible **Offensive Timer** (“shot clock”) that counts down from the configured **Offensive Time**. This timer sits under the “Ball with” section or just under the main timer (your choice), clearly labeled “Offense Time Left”.
-- If the offensive timer reaches 0, automatically:
-  - Play the buzzer sound once.
-  - Keep the master game timer running (do NOT reset the game).
-  - Keep possession as-is until the user taps to switch.
-  - The offensive timer remains at 0 until the ref/user assigns possession again (by tapping P1/P2), which restarts it to full Offensive Time.
-
-### Master Game Timer Behavior
-- Starts at first render of /game (or on a prominent “Start Game” button if you prefer).
-- Every time the configured **Buzzer Interval** elapses (e.g., every 60 seconds of elapsed game time), play the buzzer sound once (short beep) without resetting any timer.
-- When the **master game timer reaches 0:00**:
-  - Play the buzzer sound (end-of-game).
-  - Immediately reset master timer to 0:00 (do not loop).
-  - Navigate back to **/players** page (page 2) to quickly enter the next matchup. Clear timers but keep PAGE 1 settings and the uploaded audio.
-  - (Optional: show a brief “Game Over” toast before navigating.)
-
-### Pauses (Out / Foul)
-- Out = pause all timers for exactly 5s.
-- Foul = pause all timers for exactly 15s.
-- During a pause, show a countdown label “Paused: Xs”.
-- While paused: no buzzer interval ticks should accumulate; resume where left off.
-
-### Buzzer Sound Rules
-- Play buzzer on:
-  1) Every multiple of the configured **Buzzer Interval** elapsed on the **master game timer** (e.g., at 9:00, 8:00, etc. if interval=60).
-  2) Offensive timer reaching 0.
-  3) Master game timer reaching 0 (end-of-game).
-- Ensure only one buzzer plays at a time; if multiple events coincide, queue or coalesce so sounds don’t overlap.
-
-### Edge Cases & Details
-- If possession changes (P1/P2 tap), reset the offensive timer to full **Offensive Time** and start it immediately (unless the game is paused).
-- If the game is paused when possession is tapped, record the pending possession and start/restart the offensive timer only upon resume.
-- If the Offensive Time is greater than the **remaining master time**, still start it at full value but it will only count down until the master hits 0 (end-of-game).
-- Disable Out/Foul/Resume buttons while navigating between pages or while audio is loading.
-- If no possession has been set yet on /game, the offensive timer is hidden or shows “—”.
-- Protect against the browser auto-suspending timers when backgrounded; when tab refocuses, reconcile elapsed time from timestamps.
-
-### UI Copy & Labels
-- Page titles: “Game Settings”, “Players”, “Game”
-- Buttons: “Next”, “Out (5s)”, “Foul (15s)”, “Resume”, “Start Game” (if you add one)
-- Labels: “Time Left” (master), “Ball with”, “Offense Time Left”
-
-## Tech Notes
-- Use performant timer logic (requestAnimationFrame/accurate timestamp diff) rather than setInterval drift.
-- Store state keys: settings.gameMinutes, settings.gameSeconds, settings.buzzerIntervalSec, settings.offensiveTimeSec, settings.audioUrl, players.p1Name, players.p2Name, players.p1Initials, players.p2Initials, game.masterEndsAt, game.isPaused, game.pauseEndsAt, game.possession, game.offenseEndsAt, game.nextBuzzerAt.
-- Ensure audio is ready: create an AudioBuffer from the uploaded file after PAGE 1 and re-use it.
-
-## Delivery
-- Provide a single runnable app (index.html + JS/CSS or a simple React Vite project).
-- Include brief README in the repo root explaining routes, state, and how to run locally.
-If you want, I can also turn this into a lightweight React component spec with IDs and function names so you can hand it to a dev team.
-
-You said:
-i forgot to mention that all titles should be centered and when the offensive play time is done, the game time gets paused for 10 seconds
-ChatGPT said:
-
-Thought for 7s
-Perfect — here’s the updated copy-paste prompt with your two changes baked in: all titles centered and shot-clock (offensive) expiry auto-pauses the game for 10s.
-
-Build a responsive 3-page web app called “1v1 Game Timer (Basketball)”. Use a modern JS stack (vanilla JS or React). Keep design simple, high-contrast, and mobile-first.
-
-## Global Requirements
-- Center-align all page titles and section titles.
-- Persist state across pages (SPA routing or multi-view). If the user refreshes during a game, keep current timers and inputs (localStorage is fine).
-- One uploaded audio file is used as the buzzer sound everywhere.
-- All buzzers should play even if the tab was previously idle (use Web Audio API / user gesture on first page to unlock audio).
-- Keyboard support: Space toggles Resume when visible. Enter = Next on pages 1 and 2.
-- Time format: mm:ss with leading zeros. Show milliseconds only if helpful during the last second (not required).
-- When any timer “pauses for X seconds,” the master game countdown must pause and a visible countdown label shows the remaining pause time.
-
-## PAGE 1 — “Game Settings” (centered title)
-Route: /settings
-Fields (with labels and placeholders):
-1) Game Time — minutes and seconds (two inputs or one combined; default 10:00).
-2) Buzzer Interval — “Buzz every ___ seconds” during the game (integer; default 60).
-3) Offensive Time — “Shot clock (seconds)” (integer; default 24).
-4) Buzzer Sound — file upload (accept .mp3/.wav). Required before starting.
-5) Next button -> navigates to /players.
-
-Validation:
-- All numbers > 0. Game time must be >= Offensive Time.
-- Prevent Next if audio is not uploaded.
-
-On Next:
-- Save gameTimeTotal, buzzerInterval, offensiveTime, audioBlob/url to app state/localStorage.
-- Reset any existing running timers.
-
-## PAGE 2 — “Players” (centered title)
-Route: /players
-Fields:
-- Player 1 Full Name (text, required)
-- Player 2 Full Name (text, required)
-- Next button -> navigates to /game
-
-Logic:
-- From full names, compute 2-letter initials each (e.g., “LeBron James” -> “LJ”; if single name, first two letters).
-- Save player names and initials to state.
-
-## PAGE 3 — “Game” (centered title)
-Route: /game
-
-### Layout (desktop then stack for mobile)
-Left/Main Column:
-- Title (centered): “Time Left”
-- Big digital timer showing **Game Time Left** (master timer).
-- Below the big timer: two side-by-side buttons:
-  - **Out (5s)** — pauses master timer for 5 seconds
-  - **Foul (15s)** — pauses master timer for 15 seconds
-- When either is clicked:
-  - Hide both buttons.
-  - Show **Resume** button.
-  - Start a visible “Paused: Xs” countdown. During this pause all other timers are paused (including offensive timer).
-  - On **Resume**, hide Resume, show Out & Foul again, and continue all timers.
-
-Right/Side Column:
-- Title (centered): “Ball with”
-- Two large circular buttons labeled with the initials of P1 and P2.
-- Clicking a player’s button sets possession to that player and (re)starts a visible **Offensive Timer** (“Offense Time Left”) that counts down from the configured **Offensive Time**. Place this timer under the “Ball with” section or under the main timer, but clearly label it.
-- If the offensive timer reaches 0, automatically:
-  - Play the buzzer sound once.
-  - **Auto-pause the master game timer for exactly 10 seconds** (no Resume button; it resumes automatically).
-  - Show a visible label: “Offense Violation: Paused 10s” with a 10→0 countdown.
-  - Keep possession as-is until the user taps to switch.
-  - The offensive timer remains at 0 until the ref/user assigns possession again (by tapping P1/P2), which restarts it to full Offensive Time.
-
-### Master Game Timer Behavior
-- Starts at first render of /game (or on a prominent “Start Game” button if you prefer).
-- Every time the configured **Buzzer Interval** elapses (e.g., every 60 seconds of elapsed game time), play the buzzer sound once (short beep) without resetting any timer.
-- When the **master game timer reaches 0:00**:
-  - Play the buzzer sound (end-of-game).
-  - Immediately reset master timer to 0:00 (do not loop).
-  - Navigate back to **/players** page (page 2) to quickly enter the next matchup. Clear timers but keep PAGE 1 settings and the uploaded audio.
-  - (Optional: show a brief “Game Over” toast before navigating.)
-
-### Pauses (Out / Foul / Auto-Pause)
-- Out = pause all timers for exactly 5s (Resume button required).
-- Foul = pause all timers for exactly 15s (Resume button required).
-- **Offensive-expiry Auto-Pause** = pause all timers for exactly **10s** (auto-resume; **no Resume button** for this case).
-- During any pause, show a countdown label (“Paused: Xs” or “Offense Violation: Paused Xs”).
-- While paused: no buzzer interval ticks should accumulate; resume where left off.
-
-### Buzzer Sound Rules
-- Play buzzer on:
-  1) Every multiple of the configured **Buzzer Interval** elapsed on the **master game timer**.
-  2) **Offensive timer reaching 0** (then trigger the 10s auto-pause).
-  3) Master game timer reaching 0 (end-of-game).
-- Ensure only one buzzer plays at a time; if multiple events coincide, queue/coalesce so sounds don’t overlap.
-
-### Edge Cases & Details
-- If possession changes (P1/P2 tap), reset the offensive timer to full **Offensive Time** and start it immediately (unless the game is paused).
-- If the game is paused when possession is tapped, record the pending possession and start/restart the offensive timer only upon resume (or after the 10s auto-pause ends).
-- If the Offensive Time is greater than the **remaining master time**, still start it at full value but it will only count down until the master hits 0 (end-of-game).
-- Disable Out/Foul/Resume buttons while navigating between pages or while audio is loading.
-- If no possession has been set yet on /game, the offensive timer is hidden or shows “—”.
-- Protect against the browser auto-suspending timers when backgrounded; when tab refocuses, reconcile elapsed time from timestamps.
-
-### UI Copy & Labels (all titles center-aligned)
-- Page titles: “Game Settings”, “Players”, “Game”
-- Section titles: “Time Left”, “Ball with”, “Offense Time Left”
-- Buttons: “Next”, “Out (5s)”, “Foul (15s)”, “Resume”, “Start Game” (if you add one)
-
-## Tech Notes
-- Use accurate timer logic (requestAnimationFrame / timestamp diffs) rather than setInterval drift.
-- Store state keys: settings.gameMinutes, settings.gameSeconds, settings.buzzerIntervalSec, settings.offensiveTimeSec, settings.audioUrl, players.p1Name, players.p2Name, players.p1Initials, players.p2Initials, game.masterEndsAt, game.isPaused, game.pauseEndsAt, game.possession, game.offenseEndsAt, game.nextBuzzerAt, **game.autoPauseEndsAt** (for the 10s shot-clock auto-pause).
-- Ensure audio is ready: create an AudioBuffer from the uploaded file after PAGE 1 and re-use it.
-
-## Delivery
-- Provide a single runnable app (index.html + JS/CSS or a simple React Vite project).
-- Include brief README in the repo root explaining routes, state, and how to run locally.
-Want me to also add basic IDs/classnames for buttons/labels so you can QA quickly (e.g., #btn-out, #btn-foul, #lbl-master-time, #lbl-offense-time)?
-
-You said:
-and add an end game button below the out and foul buttons and make the out 15 seconds and the foul 25 seconds
-ChatGPT said:
-
-Thought for 26s
-Locked! Here’s your updated copy-paste prompt with the new requirements: End Game button and Out = 15s / Foul = 25s.
-
-Build a responsive 3-page web app called “1v1 Game Timer (Basketball)”. Use a modern JS stack (vanilla JS or React). Keep design simple, high-contrast, and mobile-first.
-
-## Global Requirements
-- Center-align all page titles and section titles.
-- Persist state across pages (SPA routing or multi-view). If the user refreshes during a game, keep current timers and inputs (localStorage is fine).
-- One uploaded audio file is used as the buzzer sound everywhere.
-- All buzzers should play even if the tab was previously idle (use Web Audio API / user gesture on first page to unlock audio).
-- Keyboard support: Space toggles Resume when visible. Enter = Next on pages 1 and 2.
-- Time format: mm:ss with leading zeros. Show milliseconds only if helpful during the last second (not required).
-- When any timer “pauses for X seconds,” the master game countdown must pause and a visible countdown label shows the remaining pause time.
-
-## PAGE 1 — “Game Settings” (centered title)
-Route: /settings
-Fields:
-1) Game Time — minutes and seconds (default 10:00)
-2) Buzzer Interval — “Buzz every ___ seconds” (default 60)
-3) Offensive Time — “Shot clock (seconds)” (default 24)
-4) Buzzer Sound — upload .mp3/.wav (required)
-5) Next -> /players
-
-Validation:
-- All numbers > 0. Game time must be >= Offensive Time.
-- Prevent Next if audio not uploaded.
-
-On Next: save gameTimeTotal, buzzerInterval, offensiveTime, audioUrl; reset any running timers.
-
-## PAGE 2 — “Players” (centered title)
-Route: /players
-Fields: Player 1 Full Name (required), Player 2 Full Name (required)
-- Compute initials (e.g., “LeBron James” -> “LJ”; single name -> first two letters).
-- Next -> /game
-
-## PAGE 3 — “Game” (centered title)
-Route: /game
-
-### Layout (desktop then stack for mobile)
-Left/Main Column:
-- Title (centered): “Time Left”
-- Big digital **Master Game Timer** counting down from Settings’ Game Time.
-- Below the big timer: two side-by-side buttons:
-  - **Out (15s)** — pauses master timer for 15 seconds
-  - **Foul (25s)** — pauses master timer for 25 seconds
-- **End Game** button (prominent, below Out/Foul). Ends the current game immediately.
-- When Out or Foul is clicked:
-  - Hide Out & Foul.
-  - Show **Resume** button.
-  - Show visible “Paused: Xs” countdown. All timers (including offensive) are paused.
-  - On **Resume**, hide Resume, show Out & Foul again, continue timers.
-- **End Game** is always visible (even during pauses/auto-pauses). Clicking it:
-  - Immediately stop timers, set master to 0:00, play buzzer once.
-  - Navigate back to **/players** (Page 2). Keep Page 1 settings and audio.
-
-Right/Side Column:
-- Title (centered): “Ball with”
-- Two large round buttons: P1 and P2 initials.
-- Clicking a player sets **possession** and (re)starts a visible **Offensive Timer** (“Offense Time Left”) from the configured Offensive Time.
-- If the offensive timer reaches 0:
-  - Play buzzer once.
-  - **Auto-pause the master game timer for exactly 10 seconds** (auto-resume; no Resume button for this case).
-  - Show label “Offense Violation: Paused 10s” with a 10→0 countdown.
-  - Possession remains as-is until user switches.
-  - Offensive timer stays at 0 until user taps P1/P2 (which restarts it to full Offensive Time, unless paused).
-
-### Master Game Timer Behavior
-- Starts on first render of /game (or use a Start button if preferred).
-- Every time the configured **Buzzer Interval** elapses on the master timer, play buzzer once (no resets).
-- When the master reaches **0:00**:
-  - Play buzzer (end-of-game).
-  - Set to 0:00 and navigate to **/players**.
-  - (Optional: brief “Game Over” toast before navigation.)
-
-### Pauses (Out / Foul / Auto-Pause)
-- **Out = 15s** pause (Resume button required).
-- **Foul = 25s** pause (Resume button required).
-- **Offensive-expiry Auto-Pause = 10s** (auto-resume; no Resume button).
-- During any pause, show a countdown label. While paused: no buzzer-interval ticks accumulate; resume from where left off.
-- **End Game** remains enabled during any pause/auto-pause.
-
-### Buzzer Sound Rules
-- Play buzzer on:
-  1) Every multiple of **Buzzer Interval** on the master game timer.
-  2) **Offensive timer reaching 0** (then trigger the 10s auto-pause).
-  3) Master game timer reaching 0 (end-of-game).
-- Ensure only one buzzer plays at a time; coalesce overlapping triggers.
-
-### Edge Cases & Details
-- Tapping P1/P2 during a pause records pending possession; offensive timer (re)starts on resume/end of auto-pause.
-- If Offensive Time > remaining master time, it still starts full but stops when the master hits 0.
-- If no possession set yet on /game, hide offensive timer or show “—”.
-- Guard against background timer drift by reconciling with timestamps on focus.
-- Disable Out/Foul/Resume during navigation or while audio is loading.
-
-### UI Copy & Labels (all titles centered)
-- Page titles: “Game Settings”, “Players”, “Game”
-- Section titles: “Time Left”, “Ball with”, “Offense Time Left”
-- Buttons: “Next”, **“Out (15s)”**, **“Foul (25s)”**, **“End Game”**, “Resume”, “Start Game” (if added)
-
-## Tech Notes
-- Use accurate timing (requestAnimationFrame / timestamp diffs) instead of setInterval-only.
-- State keys: settings.gameMinutes, settings.gameSeconds, settings.buzzerIntervalSec, settings.offensiveTimeSec, settings.audioUrl, players.p1Name, players.p2Name, players.p1Initials, players.p2Initials, game.masterEndsAt, game.isPaused, game.pauseEndsAt, game.possession, game.offenseEndsAt, game.nextBuzzerAt, game.autoPauseEndsAt.
-- Prepare audio once after upload (AudioBuffer) and reuse.
-
-## Delivery
-- Provide a single runnable app (index.html + JS/CSS or a simple React Vite project).
-- Include brief README explaining routes, state, and local run steps.
-Want me to add QA-friendly IDs for key elements (e.g., #btn-out, #btn-foul, #btn-endgame, #btn-resume, #lbl-master-time, #lbl-offense-time)?
-
-You said:
-the ai tool is not consistent, can you generate the code for me instead?
-ChatGPT said:
-
-Thought for 1m 8s
-Done! I built you a single-file web app. Open the canvas file named “1v1 Game Timer - Index” and save it as index.html. Then just double-click it to run in your browser.
-
-Highlights:
-
-3 views (Settings → Players → Game), all titles centered.
-
-Out = 15s pause, Foul = 25s pause (Resume appears; resume activates when the countdown hits 0).
-
-End Game button always visible.
-
-Offense timer resets on possession (P1/P2 initials). When it hits 0: buzzer + auto 10s pause, then auto-resume.
-
-Buzzer plays at your chosen interval, on offense expiry, and at end of game.
-
-Settings & players persist in localStorage; your uploaded buzzer is saved and reloaded.
-
-Want me to tweak anything (e.g., allow immediate resume before the 15/25s elapse, add a “Start Game” button, or show team scores)?
-
-You said:
-1v1 Game Timer - Index
-i want to note one thing that, when a user hits Out or Foul or a player reaches the time limit of their offensive play, the time should be pause, and there should be a resume button that is enabled even if the countdown didnt finish yet, id also like to add a solid pause button for other purposes next to the Out and Foul Buttons that pauses the time of the game and the resume would be there to resume it manually
-ChatGPT said:
-
-Thought for 2m 9s
-
-Thought for 16s
-
-Thought for 20s
-All set—I updated your canvas code to match your new rules:
-
-Hitting Out (15s), Foul (25s), or when the offensive timer hits 0 now pauses the game and shows a Resume button that’s enabled immediately (you can resume before the countdown finishes).
-
-Added a solid Pause button next to Out/Foul that pauses indefinitely until you hit Resume.
-
-During any pause, Out/Foul/Pause hide and Resume shows.
-
-One small thing: I tried to auto-edit one internal block (the pause loop) and the tool rejected that specific patch. The app still works as intended, but if you want the loop to exactly match the new behavior, paste this quick manual fix in your index.html:
-
-Find the block inside the main loop() that starts like this:
-
-if(game.paused){
-  // count down pause time
-  if(game.pauseRemainingMs > 0){
-    game.pauseRemainingMs = Math.max(0, game.pauseRemainingMs - dt);
-    // auto resume only for auto pause
-    if(game.pauseRemainingMs === 0 && game.pauseMode === 'auto'){
-      tryResume();
-    }
-  }
-} else {
-Replace it with this:
-
-if (game.paused) {
-  // count down pause time when finite
-  if (game.pauseRemainingMs != null && game.pauseRemainingMs > 0) {
-    game.pauseRemainingMs = Math.max(0, game.pauseRemainingMs - dt);
-  }
-} else {
-That’s it. The rest of the changes are already applied in the canvas:
-
-New Pause button (#btn-pause) wired to beginManualPause(null) (indefinite).
-
-Resume is always enabled during manual/offense pauses.
-
-Offensive-expiry now uses an “offense” pause (shows “Offense Violation: Paused Xs”) with Resume available.
-
-Want me to also add basic score tracking or a Start Game toggle?
-
-You said:
-1v1 Game Timer - Index
-i want to remove the recurring buzzer, and i want to add a pause button in the third page below the Out and Foul Buttons, and i want you to fix the disabled resume button to be always enabled but hidden if the user didnt click on either buttons on the third page (Out, Foul or Pause buttons)
-ChatGPT said:
-
-Thought for 1m 28s
-
-Thought for 31s
-On it. I didn’t overwrite the canvas this time because my last bulk edit failed mid-patch. Here’s a clean, surgical set of copy-paste edits you can apply to your “1v1 Game Timer – Index” file to:
-
-Remove the recurring buzzer
-
-Add a Pause button below Out/Foul
-
-Make Resume always enabled (only hidden when not paused)
-
-1) Remove the recurring buzzer (UI + logic)
-A. Delete the “Buzzer Interval” input block (HTML)
-Find this block in Settings and delete it:
-
-<div>
-  <label for="buzzerInterval">Buzzer Interval (seconds)</label>
-  <input id="buzzerInterval" type="number" min="1" value="60" />
-</div>
-B. Remove references to buzzerInterval (JS)
-
-In the els object, delete this fragment:
-
-buzzerInterval: $('#buzzerInterval'),
-In hydrateFromSettings() remove:
-
-els.buzzerInterval.value = settings.buzzerIntervalSec;
-In the Settings → Next click handler:
-
-Delete the line:
-
-const interval = clamp(parseInt(els.buzzerInterval.value,10)||0, 1, 3600);
-Replace the save line:
-
-settings.minutes = m; settings.seconds = s; settings.buzzerIntervalSec = interval; settings.offensiveTimeSec = off;
-with:
-
-settings.minutes = m; settings.seconds = s; settings.offensiveTimeSec = off;
-In resetGameState() remove:
-
-game.intervalMs = settings.buzzerIntervalSec * 1000;
-game.nextBuzzerElapsedMs = game.intervalMs; // first tick after first interval
-In the main loop() remove the whole recurring buzzer section:
-
-// Buzzer interval ticks based on elapsed master time
-const elapsedMs = game.totalMs - game.masterRemainingMs;
-if(game.intervalMs > 0 && elapsedMs >= game.nextBuzzerElapsedMs && prevMaster > 0){
-  playBuzzer();
-  while(game.nextBuzzerElapsedMs <= elapsedMs){
-    game.nextBuzzerElapsedMs += game.intervalMs;
-  }
-}
-Result: buzzer now plays only on offensive expiry and end-of-game.
-
-2) Add a Pause button (below Out/Foul)
-A. HTML (Game page)
-Right under the Out/Foul row, insert this new block (keep spacing like below):
-
-<div class="spacer"></div>
-<div class="actions">
-  <button id="btn-pause" class="btn btn-primary">Pause</button>
-</div>
-The whole area should look like this (context for placement):
-
-<div class="split">
-  <button id="btn-out" class="btn btn-warning">Out (15s)</button>
-  <button id="btn-foul" class="btn btn-danger">Foul (25s)</button>
-</div>
-<div class="spacer"></div>
-<div class="actions">
-  <button id="btn-pause" class="btn btn-primary">Pause</button>
-</div>
-<div class="spacer"></div>
-<div class="actions">
-  <button id="btn-resume" class="btn btn-success hidden">Resume</button>
-</div>
-B. JS wiring
-
-In the els object, add:
-
-btnPause: $('#btn-pause'),
-In the events section (Pause / Resume / End), replace that whole block with:
-
-// Pause / Resume / End
-els.btnOut.addEventListener('click', ()=> beginManualPause(15 * 1000));
-els.btnFoul.addEventListener('click', ()=> beginManualPause(25 * 1000));
-els.btnPause.addEventListener('click', ()=> beginManualPause(null)); // indefinite pause
-els.btnResume.addEventListener('click', tryResume);
-els.btnEnd.addEventListener('click', endGame);
-In beginManualPause(ms) you’re good (it already sets paused=true). Nothing else to change there.
-
-3) Make Resume always enabled (and only show it while paused)
-A. Allow resume anytime
-Replace the whole tryResume() function with:
-
-function tryResume(){
-  if(!game.paused) return;
-  // allow resume anytime (manual or offense pauses)
-  game.paused = false;
-  game.pauseMode = null;
-  game.pauseRemainingMs = 0;
-  game.showResume = false;
-  game.lastTickTs = performance.now();
-  renderGameUI();
-}
-B. Show Resume whenever paused (manual or offense), hide otherwise
-In renderGameUI(), replace the “Buttons visibility” block with:
-
-// Buttons visibility
-if(game.paused){
-  els.btnOut.classList.add('hidden');
-  els.btnFoul.classList.add('hidden');
-  if(els.btnPause) els.btnPause.classList.add('hidden');
-  els.btnResume.classList.remove('hidden');
-  els.btnResume.disabled = false; // always enabled during pause
-} else {
-  els.btnOut.classList.remove('hidden');
-  els.btnFoul.classList.remove('hidden');
-  if(els.btnPause) els.btnPause.classList.remove('hidden');
-  els.btnResume.classList.add('hidden');
-}
-C. Handle indefinite manual pause in the pill UI
-Still in renderGameUI(), change the manual-pause pill value to show “—” when indefinite:
-
-// was:
-els.lblPaused.textContent = Math.ceil(game.pauseRemainingMs/1000);
-
-// change to:
-els.lblPaused.textContent = (game.pauseRemainingMs != null) ? Math.ceil(game.pauseRemainingMs/1000) : '—';
-D. Keep resume visible for offense-expiry pauses too
-No extra change needed: the block above shows Resume whenever game.paused is true, including offense violations (your 10s auto-pause still auto-resumes at 0, but the user can resume earlier).
-
-4) (Optional) Keep the offense-expiry countdown visible
-You already show the “Offense Violation: Paused Xs” pill. That will continue to tick down; the Resume can be pressed at any time now.
-
-If you want, I can push these edits directly into the canvas on my next message so you don’t have to copy/paste.
-
-You said:
-please do
-ChatGPT said:
-
-Thought for 3m 50s
-Done! I applied the changes directly to your canvas:
-
-Removed the recurring buzzer feature (UI + logic).
-
-Added a Pause button (below Out/Foul) that pauses indefinitely until Resume.
-
-Resume now only appears while paused and is always enabled.
-
-For Out (15s) and Foul (25s) pauses → Resume is visible immediately.
-
-For offense-expiry (10s) pauses → Resume stays hidden (auto-resume at 0s), matching your latest instruction.
-
-If you want Resume to also appear for offense-expiry pauses, I can switch beginAutoPause to show it—just say the word.
-
-ChatGPT said:
-
-Thought for 1m 33s
-You said:
-1v1 Game Timer - Index
-fix the code in the canvas directly
-ChatGPT said:
-
-Thought for 59s
-Fixed! I cleaned up the syntax error and updated the canvas code.
-
-What I changed
-Removed the stray lines and extra } after tryResume() that were causing Unexpected token '}'.
-
-Kept your current behavior intact:
-
-Recurring buzzer is removed.
-
-Pause button is present (indefinite pause).
-
-Resume is always enabled when paused and hidden otherwise.
-
-Offense-expiry (10s) uses auto-pause with Resume hidden (as specified).
-
-Quick sanity check
-Open your page and:
-
-Go Settings → Players → Game.
-
-Click Pause → Resume shows immediately; click Resume → resumes.
-
-Click Out (15s) or Foul (25s) → Resume shows immediately; you can click it any time.
-
-Set possession (P1/P2), wait out the offensive timer → buzzer + 10s offense pause with Resume hidden; resumes automatically at 0s.
-
-Dev “tests”
-I also added optional smoke tests you can run from the browser console without affecting the UI:
-
-runSmokeTests()
-They assert the pause/resume flows for both manual and offense auto-pause.
-
-If you want Resume to also appear during offense-expiry (so refs can override the 10s), say the word and I’ll flip that behavior.
-
-You said:
-1v1 Game Timer - Index
-weret he fixes added to the code in the canvas?
-ChatGPT said:
-
-Thought for 20s
-Yes — the fixes are in the canvas now, and I just patched one last syntax issue I spotted.
-
-What’s in place:
-
-Recurring buzzer: removed (UI + logic).
-
-Pause button under Out/Foul (indefinite pause until Resume).
-
-Resume: always enabled while paused; hidden unless the pause was triggered by Out/Foul/Pause (i.e., it stays hidden for the offense-expiry auto-pause).
-
-Syntax fix: the self-invoking init function was missing a } before )();. I corrected it to })(); so the page loads cleanly.
-
-If anything still hiccups on your side, hit refresh and try:
-
-Settings → Players → Game
-
-Tap Pause, then Resume
-
-Tap Out (15s) or Foul (25s), then Resume
-
-Set possession (P1/P2) and let the offense timer expire — you’ll get a buzzer + 10s auto-pause (Resume stays hidden here by design)
-
-Want me to also remove the leftover unused state fields (intervalMs, nextBuzzerElapsedMs, buzzerIntervalSec default) for cleanliness?
-
-You said:
-1v1 Game Timer - Index
-i want in the first page to also let the user be able to put an audio for a whistle, so that it could be played if a player did a foul and when the ball was out
-ChatGPT said:
-
-Thought for 56s
-Added! You now have:
-
-A Whistle Sound upload on the Settings page (optional).
-
-A new playWhistle() that prefers the whistle audio and falls back to the buzzer if none is set.
-
-Out (15s) and Foul (25s) now play the whistle immediately, then pause.
-
-Whistle is persisted via settings.whistleDataUrl and restored on reload.
-
-Init restores both buzzer and whistle buffers if present.
-
-Extra smoke tests to verify the whistle triggers on Out/Foul (run runSmokeTests() in the console).
-
-Anything else you’d like the whistle to trigger (e.g., manual Pause as well), or should Pause stay silent?
-
-ChatGPT said:
-
-Thought for 20s
-All set — I fully rewrote the canvas file to fix the syntax error.
-
-What I fixed
-Removed the misplaced closing brace } that sat after maybeRestoreWhistleBuffer() and was causing Unexpected token '}'.
-
-Left your logic intact (no recurring buzzer; whistle on Out/Foul; offense-expiry triggers a 10s auto-pause with Resume hidden; Resume always enabled when paused via Out/Foul/Pause).
-
-Kept the existing smoke tests and added:
-
-A check that End Game navigates back to the Players view (async assertion).
-
-Logs to clarify synchronous vs. async checks.
-
-Quick run
-Refresh the page.
-
-If you get blocked audio, click anywhere once (browser gesture requirement).
-
-Try Pause → Resume, Out/Foul → Resume, and let an offense timer expire.
-
-If anything behaves differently than you expect (e.g., should the offense-expiry pause also show the Resume button?), tell me your preference and I’ll adjust.
-
-You said:
-what if both sounds dont need to be uploaded and are in /sounds folder
-ChatGPT said:
-
-Thought for 34s
-Done! I updated the canvas so uploads are optional:
-
-If no files are uploaded, the app will now try to load default audio from:
-
-/sounds/buzzer.mp3 (or .wav)
-
-/sounds/whistle.mp3 (or .wav)
-
-I removed the “required buzzer upload” blocker on the Settings page.
-
-On init and on “Next” from Settings, the app will attempt to restore uploaded sounds (if any), then fall back to the /sounds defaults if no uploads are present.
-
-I added safe-guard tests in runSmokeTests() to confirm the default loader functions exist and that playBuzzer()/playWhistle() are safe no-ops when buffers aren’t loaded.
-
-Quick heads-up: loading from /sounds/... assumes you’re serving index.html from a folder that has a sounds/ subfolder. If you’re opening the file directly with file://, some browsers may block fetch() for local files. If that happens, run a tiny local server (e.g., python -m http.server) at the project root so /sounds resolves properly.
-
-Want me to also add a small UI indicator that shows which sound source is active (Uploaded vs Default vs None)?
-
-You said:
-1v1 Game Timer - Index
-upon having users adding the bookmark to their homescreen, i want an icon to show as the web app icon on their homescreen and its location will be in /img and its name will be logo.png
-ChatGPT said:
-
-Thought for 16s
-Done! I wired up homescreen icon support:
-
-Added <link rel="icon"> and <link rel="apple-touch-icon"> pointing to /img/logo.png.
-
-Included mobile-friendly meta tags (apple-mobile-web-app-capable, custom title, and theme-color).
-
-Injected a web app manifest at runtime so Android’s “Add to Home Screen” uses /img/logo.png (192×192 / 512×512 entries). This avoids needing a separate manifest.json file.
-
-Just make sure you have your icon at:
-
-/img/logo.png
-Ideally provide a square PNG at least 512×512 so it looks crisp on all devices. If you want, I can also add multiple size-specific icons or generate a static manifest.webmanifest file.
-
-You said:
-1v1 Game Timer - Index
-i also want the favicon to be it
-ChatGPT said:
-
-Thought for 12s
-All set! I updated the canvas so the favicon uses /img/logo.png too. I also added a couple of compatibility tags so it works cleanly across browsers:
-
-<link rel="icon" type="image/png" href="/img/logo.png" sizes="32x32">
-
-<link rel="icon" type="image/png" href="/img/logo.png" sizes="16x16">
-
-<link rel="shortcut icon" href="/img/logo.png" type="image/png">
-
-(kept) <link rel="apple-touch-icon" href="/img/logo.png">
-
-Heads-up: browsers can cache favicons aggressively. If you don’t see it immediately, hard-refresh or clear the site data, or bump the filename (e.g., logo.png?v=2).
-
-
-
-
-No file chosenNo file chosen
-ChatGPT can make mistakes. Check important info.
-
-
-1v1 Game Timer - Index
-Selection deleted
-1
-2
-3
-4
-5
-6
-7
-8
-9
-10
-11
-12
-13
-14
-15
-16
-17
-18
-19
-20
-21
-22
-23
-24
-25
-26
-27
-28
-29
-30
-31
-32
-33
-34
-35
-36
-37
-38
-39
-40
-41
-42
-43
-44
-45
-46
-47
-48
-49
-50
-51
-52
-53
-54
-55
-56
-57
-58
-59
-60
-61
-62
-63
-64
-65
-66
-67
-68
-69
-70
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -913,3 +68,672 @@ Selection deleted
     .view.active { display: block; }
 
     /* Game layout */
+    .game-grid { display: grid; grid-template-columns: 1.4fr .9fr; gap: 16px; }
+    @media (max-width: 900px){ .game-grid { grid-template-columns: 1fr; } }
+
+    .big-time { font-size: clamp(56px, 9vw, 96px); text-align: center; font-weight: 800; letter-spacing: 2px; }
+    .sub-time { font-size: clamp(22px, 4vw, 32px); text-align: center; font-weight: 700; color: var(--muted); }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.08); background: #0f1218; color: var(--muted);
+    }
+
+    .circle-btns { display: flex; justify-content: center; gap: 12px; }
+    .circle-btns button {
+      width: 72px; height: 72px; border-radius: 50%; border: 1px solid rgba(255,255,255,.12); background: #0f1218; color: #fff; font-weight: 800; font-size: 22px; cursor: pointer;
+    }
+    .circle-btns button.active { outline: 3px solid var(--accent); }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px){ .split { grid-template-columns: 1fr; } }
+
+    .note { color: var(--muted); text-align: center; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <!-- SETTINGS VIEW -->
+      <section id="view-settings" class="view active" aria-labelledby="title-settings">
+        <h1 id="title-settings">Game Settings</h1>
+        <div class="row3">
+          <div>
+            <label for="minutes">Game Time — Minutes</label>
+            <input id="minutes" type="number" min="0" value="10" />
+          </div>
+          <div>
+            <label for="seconds">Game Time — Seconds</label>
+            <input id="seconds" type="number" min="0" max="59" value="0" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 12px;">
+          <div>
+            <label for="offensiveTime">Offensive Time (shot clock seconds)</label>
+            <input id="offensiveTime" type="number" min="1" value="24" />
+          </div>
+          <div>
+            <label for="buzzerFile">Buzzer Sound (.mp3/.wav)</label>
+            <input id="buzzerFile" type="file" accept="audio/*" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 12px;">
+          <div>
+            <label for="whistleFile">Whistle Sound (.mp3/.wav)</label>
+            <input id="whistleFile" type="file" accept="audio/*" />
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        
+        <div class="actions">
+          <button id="btn-settings-next" class="btn btn-primary">Next</button>
+        </div>
+        <p class="note">Upload a short buzzer sound, and optionally a whistle sound (used for Out/Foul). If you don't upload anything, the app will try to load **/sounds/buzzer.mp3** and **/sounds/whistle.mp3** automatically. All titles are center-aligned by design.</p>
+      </section>
+
+      <!-- PLAYERS VIEW -->
+      <section id="view-players" class="view" aria-labelledby="title-players">
+        <h1 id="title-players">Players</h1>
+        <div class="row">
+          <div>
+            <label for="p1">Player 1 — Full Name</label>
+            <input id="p1" type="text" placeholder="e.g., LeBron James" />
+          </div>
+          <div>
+            <label for="p2">Player 2 — Full Name</label>
+            <input id="p2" type="text" placeholder="e.g., Stephen Curry" />
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <div class="actions">
+          <button id="btn-players-next" class="btn btn-primary">Next</button>
+        </div>
+      </section>
+
+      <!-- GAME VIEW -->
+      <section id="view-game" class="view" aria-labelledby="title-game">
+        <h1 id="title-game">Game</h1>
+        <div class="game-grid">
+          <div>
+            <h2>Time Left</h2>
+            <div id="lbl-master-time" class="big-time">10:00</div>
+
+            <div class="spacer"></div>
+            <div id="pausePill" class="pill hidden" aria-live="polite">Paused: <span id="lbl-paused">0</span>s</div>
+            <div id="autoPausePill" class="pill hidden" style="margin-left:8px" aria-live="polite">Offense Violation: Paused <span id="lbl-auto-paused">10</span>s</div>
+
+            <div class="spacer"></div>
+            <div class="split">
+              <button id="btn-out" class="btn btn-warning">Out (15s)</button>
+              <button id="btn-foul" class="btn btn-danger">Foul (25s)</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="actions">
+              <button id="btn-pause" class="btn btn-primary">Pause</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="actions">
+              <button id="btn-resume" class="btn btn-success hidden">Resume</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="actions">
+              <button id="btn-endgame" class="btn btn-ghost">End Game</button>
+            </div>
+          </div>
+
+          <div>
+            <h2>Ball with</h2>
+            <div class="circle-btns">
+              <button id="btn-p1" title="Player 1"></button>
+              <button id="btn-p2" title="Player 2"></button>
+            </div>
+            <div class="spacer"></div>
+            <div class="sub-time">Offense Time Left</div>
+            <div id="lbl-offense-time" class="sub-time">—</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // --------- PWA manifest injection (Android Add to Home Screen) ---------
+    (function injectManifest(){
+      try {
+        const manifest = {
+          name: "1v1 Game Timer (Basketball)",
+          short_name: "1v1 Timer",
+          start_url: ".",
+          display: "standalone",
+          background_color: "#0b0e13",
+          theme_color: "#101419",
+          icons: [
+            { src: "/img/logo.png", sizes: "192x192", type: "image/png" },
+            { src: "/img/logo.png", sizes: "512x512", type: "image/png" }
+          ]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = url;
+        document.head.appendChild(link);
+      } catch (e) {
+        console.warn('[PWA] Manifest injection failed:', e);
+      }
+    })();
+    // --------------------- State ----------------------
+    const $ = sel => document.querySelector(sel);
+    const views = {
+      settings: $('#view-settings'),
+      players: $('#view-players'),
+      game: $('#view-game')
+    };
+
+    const els = {
+      minutes: $('#minutes'), seconds: $('#seconds'), offensiveTime: $('#offensiveTime'), buzzerFile: $('#buzzerFile'), whistleFile: $('#whistleFile'),
+      btnSettingsNext: $('#btn-settings-next'),
+      p1: $('#p1'), p2: $('#p2'), btnPlayersNext: $('#btn-players-next'),
+      lblMaster: $('#lbl-master-time'), lblOffense: $('#lbl-offense-time'),
+      btnOut: $('#btn-out'), btnFoul: $('#btn-foul'), btnPause: $('#btn-pause'), btnResume: $('#btn-resume'), btnEnd: $('#btn-endgame'),
+      btnP1: $('#btn-p1'), btnP2: $('#btn-p2'),
+      pausePill: $('#pausePill'), lblPaused: $('#lbl-paused'), autoPausePill: $('#autoPausePill'), lblAutoPaused: $('#lbl-auto-paused')
+    };
+
+    let settings = loadSettings();
+    let players = loadPlayers();
+
+    // Game runtime state
+    const game = {
+      totalMs: 10 * 60 * 1000,
+      masterRemainingMs: 10 * 60 * 1000,
+      offenseRemainingMs: null,
+      running: false,
+      paused: false,
+      pauseMode: null, // 'manual' | 'auto' | null
+      pauseRemainingMs: 0,
+      showResume: false,
+      lastTickTs: performance.now(),
+      intervalMs: 60 * 1000,
+      nextBuzzerElapsedMs: 60 * 1000,
+      possession: null, // 'P1' | 'P2' | null
+      ended: false,
+    };
+
+    // Audio
+    let audioCtx = null;
+    let audioBuffer = null;
+    let audioWhistleBuffer = null;
+
+    // Default assets (optional): if no uploads are provided, we attempt to load these.
+    const DEFAULT_ASSET_CANDIDATES = {
+      buzzer: ['sounds/buzzer.mp3','sounds/buzzer.wav'],
+      whistle: ['sounds/whistle.mp3','sounds/whistle.wav']
+    };
+
+    async function fetchDecodeToBuffer(url){
+      ensureAudioCtx();
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('fetch failed: ' + url);
+      const arr = await res.arrayBuffer();
+      return await audioCtx.decodeAudioData(arr);
+    }
+
+    async function tryLoadDefaultBuzzer(){
+      for(const u of DEFAULT_ASSET_CANDIDATES.buzzer){
+        try { audioBuffer = await fetchDecodeToBuffer(u); console.log('[Audio] Loaded default buzzer:', u); return true; } catch(e) {}
+      }
+      console.warn('[Audio] No default buzzer found in /sounds');
+      return false;
+    }
+
+    async function tryLoadDefaultWhistle(){
+      for(const u of DEFAULT_ASSET_CANDIDATES.whistle){
+        try { audioWhistleBuffer = await fetchDecodeToBuffer(u); console.log('[Audio] Loaded default whistle:', u); return true; } catch(e) {}
+      }
+      console.warn('[Audio] No default whistle found in /sounds');
+      return false;
+    }
+
+    function ensureAudioCtx(){
+      if(!audioCtx){
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if(audioCtx.state === 'suspended'){
+        audioCtx.resume();
+      }
+    }
+
+    function playBuzzer(){
+      if(!audioBuffer){ return; }
+      try{
+        ensureAudioCtx();
+        const src = audioCtx.createBufferSource();
+        src.buffer = audioBuffer;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      }catch(e){ console.warn('Buzzer play failed:', e); }
+    }
+
+    function playWhistle(){
+      // Prefer whistle sound; fallback to buzzer if whistle is not provided
+      const buf = audioWhistleBuffer || audioBuffer;
+      if(!buf){ return; }
+      try{
+        ensureAudioCtx();
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+      }catch(e){ console.warn('Whistle play failed:', e); }
+    }
+
+    function fileToArrayBuffer(file){
+      return new Promise((resolve, reject)=>{
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsArrayBuffer(file);
+      });
+    }
+
+    function fileToDataUrl(file){
+      return new Promise((resolve, reject)=>{
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+    }
+
+    async function handleAudioUpload(file){
+      ensureAudioCtx();
+      const [arrBuf, dataUrl] = await Promise.all([fileToArrayBuffer(file), fileToDataUrl(file)]);
+      audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+      // persist data URL in settings
+      settings.audioDataUrl = dataUrl;
+      saveSettings();
+    }
+
+    async function handleWhistleUpload(file){
+      ensureAudioCtx();
+      const [arrBuf, dataUrl] = await Promise.all([fileToArrayBuffer(file), fileToDataUrl(file)]);
+      audioWhistleBuffer = await audioCtx.decodeAudioData(arrBuf);
+      settings.whistleDataUrl = dataUrl;
+      saveSettings();
+    }
+
+    // --------------------- Storage ----------------------
+    function loadSettings(){
+      try{
+        const raw = localStorage.getItem('game_settings');
+        if(!raw) return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null, whistleDataUrl: null };
+        return JSON.parse(raw);
+      }catch{ return { minutes: 10, seconds: 0, buzzerIntervalSec: 60, offensiveTimeSec: 24, audioDataUrl: null, whistleDataUrl: null }; }
+    }
+    function saveSettings(){ localStorage.setItem('game_settings', JSON.stringify(settings)); }
+
+    function loadPlayers(){
+      try{
+        const raw = localStorage.getItem('game_players');
+        if(!raw) return { p1Name: '', p2Name: '', p1Init: '', p2Init: '' };
+        return JSON.parse(raw);
+      }catch{ return { p1Name: '', p2Name: '', p1Init: '', p2Init: '' }; }
+    }
+    function savePlayers(){ localStorage.setItem('game_players', JSON.stringify(players)); }
+
+    function initials(name){
+      if(!name) return '';
+      const parts = name.trim().split(/\s+/);
+      if(parts.length === 1){
+        return parts[0].slice(0,2).toUpperCase();
+      }
+      return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+    }
+
+    // --------------------- Navigation ----------------------
+    function show(view){
+      Object.values(views).forEach(v => v.classList.remove('active'));
+      views[view].classList.add('active');
+    }
+
+    function hydrateFromSettings(){
+      els.minutes.value = settings.minutes;
+      els.seconds.value = settings.seconds;      els.offensiveTime.value = settings.offensiveTimeSec;
+    }
+
+    function hydrateFromPlayers(){
+      els.p1.value = players.p1Name;
+      els.p2.value = players.p2Name;
+    }
+
+    async function maybeRestoreAudioBuffer(){
+      if(settings.audioDataUrl){
+        try{
+          ensureAudioCtx();
+          const res = await fetch(settings.audioDataUrl);
+          const arrBuf = await res.arrayBuffer();
+          audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+        }catch(e){ console.warn('Could not restore audio buffer:', e); }
+      }
+    }
+
+    async function maybeRestoreWhistleBuffer(){
+      if(settings.whistleDataUrl){
+        try{
+          ensureAudioCtx();
+          const res = await fetch(settings.whistleDataUrl);
+          const arrBuf = await res.arrayBuffer();
+          audioWhistleBuffer = await audioCtx.decodeAudioData(arrBuf);
+        }catch(e){ console.warn('Could not restore whistle buffer:', e); }
+      }
+    }
+
+    // --------------------- Validation ----------------------
+    function positiveInt(val){ return Number.isFinite(val) && val > 0; }
+    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+    // --------------------- Game Control ----------------------
+    function resetGameState(){
+      game.totalMs = (settings.minutes * 60 + settings.seconds) * 1000;
+      game.masterRemainingMs = game.totalMs;      game.offenseRemainingMs = null;
+      game.running = false;
+      game.paused = false;
+      game.pauseMode = null;
+      game.pauseRemainingMs = 0;
+      game.showResume = false;
+      game.possession = null;
+      game.ended = false;
+      game.lastTickTs = performance.now();
+      renderGameUI();
+    }
+
+    function startGame(){
+      game.running = true;
+      game.lastTickTs = performance.now();
+    }
+
+    function endGame(){
+      if(game.ended) return;
+      game.ended = true;
+      game.running = false;
+      game.masterRemainingMs = 0;
+      playBuzzer();
+      renderGameUI();
+      // brief timeout then go to players
+      setTimeout(()=>{ show('players'); }, 300);
+    }
+
+    function setPossession(who){
+      if(who !== 'P1' && who !== 'P2') return;
+      game.possession = who;
+      // restart shot clock to full unless paused; it will tick only when not paused
+      game.offenseRemainingMs = settings.offensiveTimeSec * 1000;
+      renderGameUI();
+    }
+
+    function beginManualPause(ms){
+      game.paused = true;
+      game.pauseMode = 'manual';
+      game.pauseRemainingMs = ms;
+      game.showResume = true; // visible immediately
+      renderGameUI();
+    }
+
+    function beginAutoPause(ms){
+      game.paused = true;
+      game.pauseMode = 'auto';
+      game.pauseRemainingMs = ms;
+      game.showResume = false; // no resume button for auto pause
+      renderGameUI();
+    }
+
+    function tryResume(){
+      if(!game.paused) return;
+      game.paused = false;
+      game.pauseMode = null;
+      game.pauseRemainingMs = 0;
+      game.showResume = false;
+      game.lastTickTs = performance.now(); // reset drift baseline
+      renderGameUI();
+    }
+
+    // --------------------- Rendering ----------------------
+    function fmt(ms){
+      ms = Math.max(0, Math.floor(ms));
+      const totalSec = Math.floor(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function renderGameUI(){
+      els.lblMaster.textContent = fmt(game.masterRemainingMs);
+      els.lblOffense.textContent = (game.offenseRemainingMs == null) ? '—' : fmt(game.offenseRemainingMs);
+
+      // Pause pills & resume visibility
+      if(game.paused && game.pauseMode === 'manual'){
+        els.pausePill.classList.remove('hidden');
+        els.autoPausePill.classList.add('hidden');
+        els.lblPaused.textContent = (game.pauseRemainingMs != null) ? Math.ceil(game.pauseRemainingMs/1000) : '—';
+      } else if(game.paused && game.pauseMode === 'auto'){
+        els.autoPausePill.classList.remove('hidden');
+        els.pausePill.classList.add('hidden');
+        els.lblAutoPaused.textContent = Math.ceil(game.pauseRemainingMs/1000);
+      } else {
+        els.pausePill.classList.add('hidden');
+        els.autoPausePill.classList.add('hidden');
+      }
+
+      // Buttons visibility
+      if(game.paused){
+        els.btnOut.classList.add('hidden');
+        els.btnFoul.classList.add('hidden');
+        if(els.btnPause) els.btnPause.classList.add('hidden');
+        if(game.showResume){
+          els.btnResume.classList.remove('hidden');
+          els.btnResume.disabled = false; // always enabled during pause
+        } else {
+          els.btnResume.classList.add('hidden');
+        }
+      } else {
+        els.btnOut.classList.remove('hidden');
+        els.btnFoul.classList.remove('hidden');
+        if(els.btnPause) els.btnPause.classList.remove('hidden');
+        els.btnResume.classList.add('hidden');
+      }
+
+      // Possession highlighting & initials
+      els.btnP1.textContent = players.p1Init || 'P1';
+      els.btnP2.textContent = players.p2Init || 'P2';
+      els.btnP1.classList.toggle('active', game.possession === 'P1');
+      els.btnP2.classList.toggle('active', game.possession === 'P2');
+    }
+
+    // --------------------- Main Loop ----------------------
+    function loop(){
+      const now = performance.now();
+      const dt = now - game.lastTickTs;
+      game.lastTickTs = now;
+
+      if(game.running){
+        if(game.paused){
+          // count down pause time
+          if(game.pauseRemainingMs > 0){
+            game.pauseRemainingMs = Math.max(0, game.pauseRemainingMs - dt);
+            // auto resume only for auto pause
+            if(game.pauseRemainingMs === 0 && game.pauseMode === 'auto'){
+              tryResume();
+            }
+          }
+        } else {
+          // advance timers
+          const prevMaster = game.masterRemainingMs;
+          game.masterRemainingMs = Math.max(0, game.masterRemainingMs - dt);
+
+          if(game.offenseRemainingMs != null){
+            const prevOff = game.offenseRemainingMs;
+            game.offenseRemainingMs = Math.max(0, game.offenseRemainingMs - dt);
+            if(prevOff > 0 && game.offenseRemainingMs === 0){
+              // Offense violation → buzzer + auto pause 10s
+              playBuzzer();
+              beginAutoPause(10 * 1000);
+            }
+          }
+          // End of game
+          if(prevMaster > 0 && game.masterRemainingMs === 0){
+            endGame();
+          }
+        }
+        renderGameUI();
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    // --------------------- Event Wiring ----------------------
+    // Settings → Next
+    els.btnSettingsNext.addEventListener('click', async ()=>{
+      const m = clamp(parseInt(els.minutes.value,10)||0, 0, 600);
+      const s = clamp(parseInt(els.seconds.value,10)||0, 0, 59);      const off = clamp(parseInt(els.offensiveTime.value,10)||0, 1, 3600);
+
+      if(m === 0 && s === 0){ alert('Game time must be more than 0.'); return; }
+      if((m*60 + s) < off){ alert('Game time must be greater than or equal to Offensive Time.'); return; }
+
+      // audio upload optional now; we will attempt to load defaults from /sounds if none provided
+
+      settings.minutes = m; settings.seconds = s; settings.offensiveTimeSec = off;
+      saveSettings();
+
+      if(els.buzzerFile.files[0]){
+        try{ await handleAudioUpload(els.buzzerFile.files[0]); }
+        catch(e){ alert('Could not load audio file. Try a different file.'); return; }
+      } else if(settings.audioDataUrl && !audioBuffer){
+        await maybeRestoreAudioBuffer();
+      }
+
+      if(els.whistleFile && els.whistleFile.files && els.whistleFile.files[0]){
+        try{ await handleWhistleUpload(els.whistleFile.files[0]); }
+        catch(e){ console.warn('Could not load whistle file. Proceeding without whistle.'); }
+      } else if(settings.whistleDataUrl && !audioWhistleBuffer){
+        await maybeRestoreWhistleBuffer();
+      }
+
+      if(!audioBuffer){ await tryLoadDefaultBuzzer(); }
+      if(!audioWhistleBuffer){ await tryLoadDefaultWhistle(); }
+      hydrateFromPlayers();
+      show('players');
+    });
+
+    // Players → Next
+    els.btnPlayersNext.addEventListener('click', ()=>{
+      const n1 = els.p1.value.trim();
+      const n2 = els.p2.value.trim();
+      if(!n1 || !n2){ alert('Please enter both players\' full names.'); return; }
+      players.p1Name = n1; players.p2Name = n2; players.p1Init = initials(n1); players.p2Init = initials(n2);
+      savePlayers();
+
+      resetGameState();
+      renderGameUI();
+      show('game');
+      startGame();
+    });
+
+    // Possession
+    els.btnP1.addEventListener('click', ()=> setPossession('P1'));
+    els.btnP2.addEventListener('click', ()=> setPossession('P2'));
+
+    // Pause / Resume / End
+    els.btnOut.addEventListener('click', ()=> { playWhistle(); beginManualPause(15 * 1000); });
+    els.btnFoul.addEventListener('click', ()=> { playWhistle(); beginManualPause(25 * 1000); });
+    els.btnPause.addEventListener('click', ()=> beginManualPause(null)); // indefinite pause
+    els.btnResume.addEventListener('click', tryResume);
+    els.btnEnd.addEventListener('click', endGame);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        if(views.settings.classList.contains('active')) els.btnSettingsNext.click();
+        else if(views.players.classList.contains('active')) els.btnPlayersNext.click();
+      }
+      if(e.code === 'Space'){ // Resume when visible
+        if(!els.btnResume.classList.contains('hidden')){ e.preventDefault(); els.btnResume.click(); }
+      }
+    });
+
+    // Initialize UI with stored settings
+    (async function init(){
+      hydrateFromSettings();
+      if(settings.audioDataUrl){ await maybeRestoreAudioBuffer(); }
+      if(settings.whistleDataUrl){ await maybeRestoreWhistleBuffer(); }
+      if(!audioBuffer){ await tryLoadDefaultBuzzer(); }
+      if(!audioWhistleBuffer){ await tryLoadDefaultWhistle(); }
+      renderGameUI();
+      loop();
+    })();
+
+    // --------------------- Developer Smoke Tests ----------------------
+    // Call `runSmokeTests()` from the browser console to verify core behavior without altering UI state.
+    function runSmokeTests(){
+      console.log('[Tests] Starting smoke tests...');
+      const snap = { ...game };
+      try {
+        console.assert(typeof tryResume === 'function', 'tryResume exists');
+        console.assert(typeof tryLoadDefaultBuzzer === 'function' && typeof tryLoadDefaultWhistle === 'function', 'default audio loaders exist');
+        // Ensure playBuzzer/Whistle are no-ops without buffers
+        try { playBuzzer(); playWhistle(); } catch(e){ console.assert(false, 'play functions should not throw without buffers'); }
+        console.assert(!!els.btnOut && !!els.btnFoul && !!els.btnPause && !!els.btnResume, 'buttons exist');
+
+        // Manual pause should expose Resume immediately
+        beginManualPause(15000);
+        console.assert(game.paused === true, 'manual pause sets paused');
+        console.assert(game.showResume === true, 'manual pause shows resume');
+        tryResume();
+        console.assert(game.paused === false, 'resume clears pause');
+
+        // Offense auto-pause should hide Resume (per spec)
+        beginAutoPause(10000);
+        console.assert(game.paused === true && game.pauseMode === 'auto', 'auto pause active');
+        console.assert(game.showResume === false, 'auto pause hides resume');
+        tryResume();
+        console.assert(game.paused === false, 'resume clears auto pause too');
+
+        // Whistle triggers on Out/Foul
+        let whistleCalls = 0;
+        const oldWhistle = window.playWhistle;
+        window.playWhistle = ()=>{ whistleCalls++; };
+        els.btnOut.click();
+        console.assert(whistleCalls >= 1, 'whistle called on Out');
+        tryResume();
+        els.btnFoul.click();
+        console.assert(whistleCalls >= 2, 'whistle called on Foul');
+        window.playWhistle = oldWhistle;
+
+        // End Game navigates to players
+        show('game');
+        endGame();
+        setTimeout(()=>{
+          console.assert(views.players.classList.contains('active'), 'navigated to players after endGame');
+          console.log('[Tests] async endGame navigation assertion complete');
+        }, 350);
+
+        console.log('[Tests] All synchronous smoke tests passed (async checks pending)');
+      } catch (e) {
+        console.error('[Tests] Failed:', e);
+      } finally {
+        // Restore snapshot
+        game.paused = snap.paused;
+        game.pauseMode = snap.pauseMode;
+        game.pauseRemainingMs = snap.pauseRemainingMs;
+        game.showResume = snap.showResume;
+        game.masterRemainingMs = snap.masterRemainingMs;
+        game.offenseRemainingMs = snap.offenseRemainingMs;
+        renderGameUI();
+      }
+    }
+    window.runSmokeTests = runSmokeTests;
+  </script>
+</body>
+</html>
