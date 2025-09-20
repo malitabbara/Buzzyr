@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>1v1 Game Timer (Basketball)</title>
+  <!-- Homescreen / PWA Icons -->
+  <link rel="icon" type="image/png" href="/img/logo.png" />
+  <link rel="apple-touch-icon" href="/img/logo.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="1v1 Timer" />
+  <meta name="theme-color" content="#101419" />
   <style>
     :root {
       --bg: #0f1115;
@@ -191,6 +197,31 @@
   </div>
 
   <script>
+    // --------- PWA manifest injection (Android Add to Home Screen) ---------
+    (function injectManifest(){
+      try {
+        const manifest = {
+          name: "1v1 Game Timer (Basketball)",
+          short_name: "1v1 Timer",
+          start_url: ".",
+          display: "standalone",
+          background_color: "#0b0e13",
+          theme_color: "#101419",
+          icons: [
+            { src: "/img/logo.png", sizes: "192x192", type: "image/png" },
+            { src: "/img/logo.png", sizes: "512x512", type: "image/png" }
+          ]
+        };
+        const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = url;
+        document.head.appendChild(link);
+      } catch (e) {
+        console.warn('[PWA] Manifest injection failed:', e);
+      }
+    })();
     // --------------------- State ----------------------
     const $ = sel => document.querySelector(sel);
     const views = {
